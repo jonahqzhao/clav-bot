@@ -1,4 +1,4 @@
-name: Check Clavicular Tweet
+name: Check Clav0Updates Tweets
 
 on:
   schedule:
@@ -25,30 +25,22 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          playwright install chromium
 
-      - name: Run bot
+      - name: Run tweet checker
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: python check_tweet.py
 
-      - name: Upload HTML debug artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nitter-debug-html
-          path: debug_nitter.html
-
-      - name: Show generated files
+      - name: Show files (debug)
         if: always()
         run: |
-          echo "Current directory:"
+          echo "Working directory:"
           pwd
           echo ""
           echo "Files:"
           ls -lah
 
-      - name: Commit updated state
+      - name: Commit state file
         if: success()
         run: |
           git config user.name github-actions
