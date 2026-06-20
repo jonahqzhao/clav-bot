@@ -1,12 +1,14 @@
 import json
 import os
+import re
 from pathlib import Path
 
-import feedparser
 import requests
+from playwright.sync_api import sync_playwright
 
-USERNAME = "clav0updates"
-RSS_URL = f"https://nitter.poast.org/{USERNAME}/rss"
+USERNAME = "clavicular"
+PROFILE_URL = f"https://x.com/{USERNAME}"
+
 WEBHOOK_URL = os.environ["DISCORD_WEBHOOK"]
 
 STATE_FILE = Path("state.json")
@@ -25,55 +27,91 @@ def save_state(state):
         json.dump(state, f, indent=2)
 
 
-def latest_tweet():
-    feed = feedparser.parse(RSS_URL)
+def get_latest_tweet():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
 
-    if not feed.entries:
-        raise RuntimeError("RSS feed empty")
+        page = browser.new_page(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/126.0.0.0 Safari/537.36"
+            )
+        )
 
-    entry = feed.entries[0]
+        page.goto(
+            PROFILE_URL,
+            wait_until="domcontentloaded",
+            timeout=60000,
+        )
 
-    # Example RSS link:
-    # https://nitter.poast.org/clavicular/status/1931234567890123456
+        page.wait_for_timeout(5000)
 
-    tweet_id = entry.link.rstrip("/").split("/")[-1]
+        links = page.locator('a[href*="/status/"]')
 
-    return {
-        "id": tweet_id,
-        "title": entry.title,
-        "x_url": f"https://x.com/{USERNAME}/status/{tweet_id}",
-    }
+        count = links.count()
+
+        status_href = None
+
+        for i in range(count):
+            href = links.nth(i).get_attribute("href")
+
+            if not href:
+                continue
+
+            if f"/{USERNAME}/status/" in href:
+                status_href = href
+                break
+
+        browser.close()
+
+        if status_href is None:
+            raise RuntimeError("Could not find a tweet link.")
+
+        match = re.search(r"/status/(\d+)", status_href)
+
+        if match is None:
+            raise RuntimeError("Could not parse tweet id.")
+
+        tweet_id = match.group(1)
+
+        return {
+            "id": tweet_id,
+            "url": f"https://x.com/{USERNAME}/status/{tweet_id}",
+        }
 
 
 def send_discord(tweet):
     payload = {
         "username": "Clav's Disciple",
-        "content": (
-            f"🚨 New tweet from @{USERNAME}\n\n"
-            f"{tweet['title']}\n\n"
-            f"{tweet['x_url']}"
-        ),
+        "content": f"🚨 New tweet\n\n{tweet['url']}",
     }
 
-    r = requests.post(WEBHOOK_URL, json=payload, timeout=15)
-    r.raise_for_status()
+    response = requests.post(
+        WEBHOOK_URL,
+        json=payload,
+        timeout=15,
+    )
+
+    response.raise_for_status()
 
 
 def main():
     state = load_state()
 
-    tweet = latest_tweet()
+    tweet = get_latest_tweet()
 
     if not state["last_tweet_id"]:
         state["last_tweet_id"] = tweet["id"]
         save_state(state)
+
         print("Initialized state.")
         return
 
     if tweet["id"] == state["last_tweet_id"]:
         print("No new tweet.")
         return
-    
+
     send_discord(tweet)
 
     state["last_tweet_id"] = tweet["id"]
