@@ -64,10 +64,16 @@ def main():
 
     tweet = latest_tweet()
 
+    if not state["last_tweet_id"]:
+        state["last_tweet_id"] = tweet["id"]
+        save_state(state)
+        print("Initialized state.")
+        return
+
     if tweet["id"] == state["last_tweet_id"]:
         print("No new tweet.")
         return
-
+    
     send_discord(tweet)
 
     state["last_tweet_id"] = tweet["id"]
