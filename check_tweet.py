@@ -6,7 +6,7 @@ from pathlib import Path
 import requests
 from playwright.sync_api import sync_playwright
 
-USERNAME = "clav0updates"
+USERNAME = "Clav0Updates"
 PROFILE_URL = f"https://x.com/{USERNAME}"
 
 WEBHOOK_URL = os.environ["DISCORD_WEBHOOK"]
@@ -16,7 +16,7 @@ STATE_FILE = Path("state.json")
 
 def load_state():
     if STATE_FILE.exists():
-        with open(STATE_FILE) as f:
+        with open(STATE_FILE, "r") as f:
             return json.load(f)
 
     return {"last_tweet_id": ""}
@@ -47,44 +47,42 @@ def get_latest_tweet():
 
         page.wait_for_timeout(5000)
 
-        links = page.locator('a[href*="/status/"]')
+        # Debug artifacts
+        page.screenshot(path="debug.png", full_page=True)
 
+        with open("debug.html", "w", encoding="utf-8") as f:
+            f.write(page.content())
+
+        print("URL:", page.url)
+        print("TITLE:", page.title())
+
+        links = page.locator('a[href*="/status/"]')
         count = links.count()
 
-        status_href = None
+        print("STATUS LINK COUNT:", count)
+
+        tweet_id = None
 
         for i in range(count):
             href = links.nth(i).get_attribute("href")
 
+            print("HREF:", href)
+
             if not href:
                 continue
 
-            if f"/{USERNAME}/status/" in href:
-                status_href = href
+            match = re.search(r"/status/(\d+)", href)
+
+            if match:
+                tweet_id = match.group(1)
                 break
 
-        page.screenshot(path="debug.png", full_page=True)
-        
-        with open("debug.html", "w", encoding="utf-8") as f:
-            f.write(page.content())
-        
-        print(page.title())
-        
-        browser.close()
-        
-        raise RuntimeError("Debug stop")
-
         browser.close()
 
-        if status_href is None:
-            raise RuntimeError("Could not find a tweet link.")
-
-        match = re.search(r"/status/(\d+)", status_href)
-
-        if match is None:
-            raise RuntimeError("Could not parse tweet id.")
-
-        tweet_id = match.group(1)
+        if tweet_id is None:
+            raise RuntimeError(
+                "Could not find a tweet id in any status link."
+            )
 
         return {
             "id": tweet_id,
@@ -94,7 +92,7 @@ def get_latest_tweet():
 
 def send_discord(tweet):
     payload = {
-        "username": "Clav's Disciple",
+        "username": "Clavicular Tracker",
         "content": f"🚨 New tweet\n\n{tweet['url']}",
     }
 
@@ -112,6 +110,9 @@ def main():
 
     tweet = get_latest_tweet()
 
+    print("LATEST TWEET:", tweet["id"])
+
+    # First run: initialize only
     if not state["last_tweet_id"]:
         state["last_tweet_id"] = tweet["id"]
         save_state(state)
