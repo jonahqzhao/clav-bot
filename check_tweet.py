@@ -4,7 +4,7 @@ from pathlib import Path
 import snscrape.modules.twitter as sntwitter
 import os
 
-USERNAME = "clavicular"
+USERNAME = "clavicular0"
 WEBHOOK_URL = os.environ["DISCORD_WEBHOOK"]
 
 STATE_FILE = Path("state.json")
