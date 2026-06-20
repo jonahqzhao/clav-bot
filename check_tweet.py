@@ -4,10 +4,10 @@ import re
 from pathlib import Path
 
 import requests
-from playwright.sync_api import sync_playwright
+from bs4 import BeautifulSoup
 
 USERNAME = "Clav0Updates"
-PROFILE_URL = f"https://x.com/{USERNAME}"
+NITTER_URL = f"https://nitter.poast.org/{USERNAME}"
 
 WEBHOOK_URL = os.environ["DISCORD_WEBHOOK"]
 
@@ -16,112 +16,70 @@ STATE_FILE = Path("state.json")
 
 def load_state():
     if STATE_FILE.exists():
-        with open(STATE_FILE, "r") as f:
-            return json.load(f)
-
+        return json.loads(STATE_FILE.read_text())
     return {"last_tweet_id": ""}
 
 
 def save_state(state):
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f, indent=2)
+    STATE_FILE.write_text(json.dumps(state, indent=2))
 
 
-def get_latest_tweet():
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+def fetch_latest_tweet():
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
 
-        page = browser.new_page(
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/126.0.0.0 Safari/537.36"
-            )
-        )
+    r = requests.get(NITTER_URL, headers=headers, timeout=20)
+    r.raise_for_status()
 
-        page.goto(
-            PROFILE_URL,
-            wait_until="domcontentloaded",
-            timeout=60000,
-        )
+    soup = BeautifulSoup(r.text, "html.parser")
 
-        page.wait_for_timeout(5000)
+    # find all tweet links
+    links = soup.select('a[href*="/status/"]')
 
-        # Debug artifacts
-        page.screenshot(path="debug.png", full_page=True)
+    for link in links:
+        href = link.get("href")
+        if not href:
+            continue
 
-        with open("debug.html", "w", encoding="utf-8") as f:
-            f.write(page.content())
+        match = re.search(r"/status/(\d+)", href)
+        if match:
+            tweet_id = match.group(1)
 
-        print("URL:", page.url)
-        print("TITLE:", page.title())
+            return {
+                "id": tweet_id,
+                "url": f"https://x.com/{USERNAME}/status/{tweet_id}",
+            }
 
-        links = page.locator('a[href*="/status/"]')
-        count = links.count()
-
-        print("STATUS LINK COUNT:", count)
-
-        tweet_id = None
-
-        for i in range(count):
-            href = links.nth(i).get_attribute("href")
-
-            print("HREF:", href)
-
-            if not href:
-                continue
-
-            match = re.search(r"/status/(\d+)", href)
-
-            if match:
-                tweet_id = match.group(1)
-                break
-
-        browser.close()
-
-        if tweet_id is None:
-            raise RuntimeError(
-                "Could not find a tweet id in any status link."
-            )
-
-        return {
-            "id": tweet_id,
-            "url": f"https://x.com/{USERNAME}/status/{tweet_id}",
-        }
+    raise RuntimeError("No tweet found on Nitter page")
 
 
 def send_discord(tweet):
-    payload = {
-        "username": "Clav's Disciple",
-        "content": f"🚨 New tweet\n\n{tweet['url']}",
-    }
-
-    response = requests.post(
+    requests.post(
         WEBHOOK_URL,
-        json=payload,
+        json={
+            "username": "Tweet Tracker",
+            "content": f"New tweet:\n{tweet['url']}",
+        },
         timeout=15,
-    )
-
-    response.raise_for_status()
+    ).raise_for_status()
 
 
 def main():
     state = load_state()
+    tweet = fetch_latest_tweet()
 
-    tweet = get_latest_tweet()
+    print("LATEST:", tweet["id"])
 
-    print("LATEST TWEET:", tweet["id"])
-
-    # First run: initialize only
+    # first run init
     if not state["last_tweet_id"]:
         state["last_tweet_id"] = tweet["id"]
         save_state(state)
-
-        print("Initialized state.")
+        print("Initialized")
         return
 
     if tweet["id"] == state["last_tweet_id"]:
-        print("No new tweet.")
+        print("No new tweet")
         return
 
     send_discord(tweet)
@@ -129,7 +87,7 @@ def main():
     state["last_tweet_id"] = tweet["id"]
     save_state(state)
 
-    print("New tweet sent.")
+    print("Sent new tweet")
 
 
 if __name__ == "__main__":
