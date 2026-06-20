@@ -6,7 +6,7 @@ from pathlib import Path
 import requests
 from playwright.sync_api import sync_playwright
 
-USERNAME = "clavicular"
+USERNAME = "clav0updates"
 PROFILE_URL = f"https://x.com/{USERNAME}"
 
 WEBHOOK_URL = os.environ["DISCORD_WEBHOOK"]
