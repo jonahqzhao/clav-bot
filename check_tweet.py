@@ -31,6 +31,13 @@ def fetch_latest_tweet():
 
     r = requests.get(NITTER_URL, headers=headers, timeout=20)
     r.raise_for_status()
+    with open("debug_nitter.html", "w", encoding="utf-8") as f:
+        f.write(r.text)
+    
+    print("Saved debug_nitter.html")
+    print("URL:", url)
+    print("STATUS:", r.status_code)
+    print("SIZE:", len(r.text))
 
     soup = BeautifulSoup(r.text, "html.parser")
 
