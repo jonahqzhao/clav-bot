@@ -63,6 +63,17 @@ def get_latest_tweet():
                 status_href = href
                 break
 
+        page.screenshot(path="debug.png", full_page=True)
+        
+        with open("debug.html", "w", encoding="utf-8") as f:
+            f.write(page.content())
+        
+        print(page.title())
+        
+        browser.close()
+        
+        raise RuntimeError("Debug stop")
+
         browser.close()
 
         if status_href is None:
