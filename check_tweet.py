@@ -7,7 +7,7 @@ import requests
 from bs4 import BeautifulSoup
 
 USERNAME = "Clav0Updates"
-NITTER_URL = f"https://nitter.poast.org/{USERNAME}"
+NITTER_URL = f"https://nitter.net/{USERNAME}"
 
 WEBHOOK_URL = os.environ["DISCORD_WEBHOOK"]
 
