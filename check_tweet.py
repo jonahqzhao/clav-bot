@@ -92,7 +92,7 @@ def get_latest_tweet():
 
 def send_discord(tweet):
     payload = {
-        "username": "Clavicular Tracker",
+        "username": "Clav's Disciple",
         "content": f"🚨 New tweet\n\n{tweet['url']}",
     }
 
