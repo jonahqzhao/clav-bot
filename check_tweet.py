@@ -1,21 +1,23 @@
 import json
-import requests
-from pathlib import Path
-import snscrape.modules.twitter as sntwitter
 import os
+from pathlib import Path
 
-USERNAME = "clavicular0"
+import feedparser
+import requests
+
+USERNAME = "clavicular"
+RSS_URL = f"https://nitter.poast.org/{USERNAME}/rss"
 WEBHOOK_URL = os.environ["DISCORD_WEBHOOK"]
 
 STATE_FILE = Path("state.json")
 
 
 def load_state():
-    if not STATE_FILE.exists():
-        return {"last_tweet_id": ""}
+    if STATE_FILE.exists():
+        with open(STATE_FILE) as f:
+            return json.load(f)
 
-    with open(STATE_FILE, "r") as f:
-        return json.load(f)
+    return {"last_tweet_id": ""}
 
 
 def save_state(state):
@@ -24,36 +26,43 @@ def save_state(state):
 
 
 def latest_tweet():
-    scraper = sntwitter.TwitterUserScraper(USERNAME)
+    feed = feedparser.parse(RSS_URL)
 
-    for tweet in scraper.get_items():
-        return {
-            "id": str(tweet.id),
-            "text": tweet.rawContent,
-            "url": f"https://x.com/{USERNAME}/status/{tweet.id}",
-        }
+    if not feed.entries:
+        raise RuntimeError("RSS feed empty")
 
-    return None
+    entry = feed.entries[0]
+
+    # Example RSS link:
+    # https://nitter.poast.org/clavicular/status/1931234567890123456
+
+    tweet_id = entry.link.rstrip("/").split("/")[-1]
+
+    return {
+        "id": tweet_id,
+        "title": entry.title,
+        "x_url": f"https://x.com/{USERNAME}/status/{tweet_id}",
+    }
 
 
 def send_discord(tweet):
     payload = {
+        "username": "Clavicular Tracker",
         "content": (
             f"🚨 New tweet from @{USERNAME}\n\n"
-            f"{tweet['text']}\n\n"
-            f"{tweet['url']}"
-        )
+            f"{tweet['title']}\n\n"
+            f"{tweet['x_url']}"
+        ),
     }
 
-    requests.post(WEBHOOK_URL, json=payload, timeout=15)
+    r = requests.post(WEBHOOK_URL, json=payload, timeout=15)
+    r.raise_for_status()
 
 
 def main():
     state = load_state()
-    tweet = latest_tweet()
 
-    if tweet is None:
-        return
+    tweet = latest_tweet()
 
     if tweet["id"] == state["last_tweet_id"]:
         print("No new tweet.")
