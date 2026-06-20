@@ -5,7 +5,7 @@ from pathlib import Path
 import feedparser
 import requests
 
-USERNAME = "clavicular"
+USERNAME = "clav0updates"
 RSS_URL = f"https://nitter.poast.org/{USERNAME}/rss"
 WEBHOOK_URL = os.environ["DISCORD_WEBHOOK"]
 
@@ -47,7 +47,7 @@ def latest_tweet():
 
 def send_discord(tweet):
     payload = {
-        "username": "Clavicular Tracker",
+        "username": "Clav's Disciple",
         "content": (
             f"🚨 New tweet from @{USERNAME}\n\n"
             f"{tweet['title']}\n\n"
